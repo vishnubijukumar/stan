@@ -1,0 +1,3 @@
+# Ignore Windows Zone.Identifier files which can appear when downloading files
+# The pattern below ignores files named .Zone.Identifier at any level of the repository
+**/.Zone.Identifier
