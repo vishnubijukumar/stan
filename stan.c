@@ -5,8 +5,11 @@
 #include<ctype.h>
 #include<errno.h>
 #include<sys/ioctl.h>
+#include<string.h>
+
 
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define STAN_VERSION "0.0.1"
 
 // data
 
@@ -96,28 +99,74 @@ int getWindowSize( int *rows, int *cols)
     }
 }
 
+// append buffer
+struct abuf
+{
+    char *b;
+    int len;
+};
+
+#define ABUF_INIT {NULL, 0}
+
+void abAppend(struct abuf *ab, const char *s, int len)
+{
+    char *new= realloc(ab->b, ab->len + len);
+
+    if(new == NULL) return;
+    memcpy(&new[ab->len],s,len);
+    ab->b = new;
+    ab->len += len;
+}
+
+void abFree(struct abuf *ab)
+{
+    free(ab->b);
+}
+
 // output
 
-void editorDrawRows()
+void editorDrawRows(struct abuf *ab)
 {
     int y;
     for(y=0; y < E.screenrows; y++)
     {
-        write(STDOUT_FILENO, "~", 1);
-
+        if(y == E.screenrows/3)
+        {
+            char welcome[80];
+            int welcomelen = snprintf(welcome, sizeof(welcome), "Stan editor -- version %s", STAN_VERSION);
+            if(welcomelen > E.screencols) welcomelen = E.screencols;
+            int padding = (E.screencols - welcomelen) / 2;
+            if (padding) {
+            abAppend(ab, "~", 1);
+            padding--;
+      }
+      while (padding--) abAppend(ab, " ", 1);
+            abAppend(ab,welcome,welcomelen);
+        }
+        else
+        {
+            abAppend(ab, "~", 1);
+        }
+        
+        abAppend(ab, "\x1b[K", 3);
         if(y < E.screenrows-1)
         {
-            write(STDOUT_FILENO, "\r\n",2);
+            abAppend(ab, "\r\n",2);
         }
     }
 }
 void editorRefreshScreen()
 {
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    struct abuf ab = ABUF_INIT;
+    abAppend(&ab, "\x1b[?25l",6);
+    // abAppend(&ab, "\x1b[2J", 4);
+    abAppend(&ab, "\x1b[H", 3);
 
-    editorDrawRows();
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    editorDrawRows(&ab);
+    abAppend(&ab, "\x1b[H", 3);
+    abAppend(&ab, "\x1b[?25h",6);
+    write(STDOUT_FILENO,ab.b, ab.len);
+    abFree(&ab);
 }
 
 // input
